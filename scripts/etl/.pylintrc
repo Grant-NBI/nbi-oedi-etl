@@ -1,0 +1,8 @@
+[MASTER]
+ignore=glue-entry,package
+
+[MESSAGES CONTROL]
+disable=
+    C0114,  # Disable missing-module-docstring
+    C0115,  # Disable missing-class-docstring
+    C0116   # Disable missing-function-docstring

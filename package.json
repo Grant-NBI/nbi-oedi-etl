@@ -1,0 +1,31 @@
+{
+  "name": "nbi-open-data-analytics",
+  "version": "0.1.0",
+  "bin": {
+    "nbi-open-data-analytics": "bin/nbi-open-data-analytics.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "copy-config": "node -e \"const fs = require('fs'); const path = require('path'); const srcPath = path.join(__dirname, 'config.json'); const destPath = path.join(__dirname, 'scripts/etl/config.json'); fs.copyFileSync(srcPath, destPath); console.log('config.json copied to scripts/etl');\"",
+    "etl-package": "node scripts/etl-package.js",
+    "deploy": "npm run copy-config && npm run etl-package && node scripts/deploy.js"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "20.12.7",
+    "aws-cdk": "2.144.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.4.5"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.144.0",
+    "constructs": "^10.0.0",
+    "nbi-open-data-analytics": "file:",
+    "source-map-support": "^0.5.21"
+  }
+}

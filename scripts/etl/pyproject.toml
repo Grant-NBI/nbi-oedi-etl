@@ -1,0 +1,27 @@
+[tool.poetry]
+authors = ["nbi"]
+description = "etl energy usage data from the OEDI  dal to an S3 bucket."
+license = "MIT"
+name = "oedi-etl"
+packages = [{include = "oedi-etl"}]
+readme = "README.md"
+version = "0.1.0"
+
+[build-system]
+build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]
+
+[tool.poetry.dependencies]
+boto3 = "^1.35.23" 
+pyarrow = "^17.0.0" 
+python = ">=3.10,<3.13" #!Glue latest version supported is 3.10 via Glue 4.0. Do not use 3.11 or 3.12 feature! This is just to make it compatible with the latest python versions in your local environment
+s3fs = "^2024.9.0" 
+structlog = "^24.4.0" 
+
+[tool.poetry.dev-dependencies]
+black = "^24.8.0"
+pytest = "^7.2.0"
+
+[tool.poetry.scripts]
+package = "packager:package_etl"
+test = "runner:run_test"
