@@ -8,7 +8,7 @@ import asyncio
 import json
 
 import boto3
-from log import get_logger
+from oedi_etl.log import get_logger
 
 logger = get_logger()
 
@@ -132,21 +132,18 @@ async def list_files_in_s3(objects_to_fetch_async_queue, config, monitor):
         while partitions:
             current_partition = partitions.pop(0)
             logger.debug(f"1105: Processing partition: {current_partition}")
+            # Back pressure control
+            if objects_to_fetch_async_queue.qsize() >= max_queue_size:
+                logger.info(
+                    f"1112: Queue size ({objects_to_fetch_async_queue.qsize()}) exceeds limit ({max_queue_size}). Pausing..."
+                )
+                await asyncio.sleep(2)  # Sleep to allow catchup
 
             # Check if current_partition is a metadata file (ends with '.parquet')
             if current_partition.endswith('.parquet'):
-                logger.debug(f"1106: Enqueuing metadata file: {current_partition}")
-
-                # Back pressure control
-                if objects_to_fetch_async_queue.qsize() >= max_queue_size:
-                    logger.info(
-                        f"1112: Queue size ({objects_to_fetch_async_queue.qsize()}) exceeds limit ({max_queue_size}). Pausing..."
-                    )
-                    await asyncio.sleep(2)  # Sleep to allow catchup
-
-                # Enqueue the metadata file directly
-                await objects_to_fetch_async_queue.put(current_partition)
-                monitor.record_listed(current_partition)
+                # directly copy metadata file from src to dest bucket without processing
+                await bypass_etl(current_partition, config, monitor)
+                monitor.record_bypassed(current_partition)
                 await asyncio.sleep(0)  # Yield control
             else:
                 # It's a data partition (prefix), list files under it
@@ -159,7 +156,45 @@ async def list_files_in_s3(objects_to_fetch_async_queue, config, monitor):
 
     except Exception as e:
         logger.error(f"1115: Error listing files: {e}")
+        await objects_to_fetch_async_queue.put(None)
 
+
+async def bypass_etl(partition_key, config, monitor):
+    """
+    Bypasses the ETL process by copying the file directly from the source bucket to the destination bucket.
+
+    Args:
+        partition_key (str): The partition key (path) of the file to be copied. This includes the s3 bucket as well.
+        config (dict): Configuration dictionary containing source and destination bucket info.
+        monitor (Monitor): An optional monitoring object to track the bypass.
+
+    """
+    src_bucket = config["src_bucket"]
+    dest_bucket = config["dest_bucket"]
+    out_dir = config["output_dir"]
+    #partition_key is in the format of bucket_name/file_key
+    file_key = "/".join(partition_key.split("/")[1:])
+    dest_key =  f"{out_dir}/{file_key}"
+    dest = f"{dest_bucket}/{dest_key}"
+
+    try:
+        # Perform S3 copy operation
+        logger.info(f"1106: Copying file from {partition_key} to {dest}")
+
+        copy_source = {'Bucket': src_bucket, 'Key': file_key}
+        s3.copy(copy_source, dest_bucket, dest_key)
+
+        if monitor:
+            monitor.record_bypassed(partition_key)
+
+        logger.info(f"1107: Successfully bypassed ETL and copied {partition_key} to {dest}")
+
+    except s3.exceptions.NoSuchKey:
+        logger.error(f"1108:File {partition_key} not found in {src_bucket}")
+
+    except Exception as e:
+        logger.error(f"1109:Error during bypass ETL for file {partition_key}: {e}")
+        raise
 
 
 def fetch_file(config, file_key):

@@ -11,7 +11,7 @@ from io import BytesIO
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from log import get_logger
+from oedi_etl.log import get_logger
 
 logger = get_logger()
 
@@ -61,55 +61,55 @@ def aggregate_to_one_hour(table, worker_id):
         ),  #! Since all values in a group should be the same, 'min' is used here and assume that the bldg_id is the same for all rows in a group
         ("timestamp", "min"),  # all values are floored to the same hour
         # aggregate all other columns as mean (see TODO above)
-        # ("out.district_cooling.cooling.energy_consumption", "mean"),
-        # ("out.district_cooling.cooling.energy_consumption_intensity", "mean"),
-        # ("out.district_cooling.total.energy_consumption", "mean"),
-        # ("out.district_cooling.total.energy_consumption_intensity", "mean"),
-        # ("out.district_heating.heating.energy_consumption", "mean"),
-        # ("out.district_heating.heating.energy_consumption_intensity", "mean"),
-        # ("out.district_heating.total.energy_consumption", "mean"),
-        # ("out.district_heating.total.energy_consumption_intensity", "mean"),
-        # ("out.district_heating.water_systems.energy_consumption", "mean"),
-        # ("out.district_heating.water_systems.energy_consumption_intensity", "mean"),
-        # ("out.electricity.cooling.energy_consumption", "mean"),
-        # ("out.electricity.cooling.energy_consumption_intensity", "mean"),
-        # ("out.electricity.exterior_lighting.energy_consumption", "mean"),
-        # ("out.electricity.exterior_lighting.energy_consumption_intensity", "mean"),
-        # ("out.electricity.fans.energy_consumption", "mean"),
-        # ("out.electricity.fans.energy_consumption_intensity", "mean"),
-        # ("out.electricity.heat_recovery.energy_consumption", "mean"),
-        # ("out.electricity.heat_recovery.energy_consumption_intensity", "mean"),
-        # ("out.electricity.heat_rejection.energy_consumption", "mean"),
-        # ("out.electricity.heat_rejection.energy_consumption_intensity", "mean"),
-        # ("out.electricity.heating.energy_consumption", "mean"),
-        # ("out.electricity.heating.energy_consumption_intensity", "mean"),
-        # ("out.electricity.interior_equipment.energy_consumption", "mean"),
-        # ("out.electricity.interior_equipment.energy_consumption_intensity", "mean"),
-        # ("out.electricity.interior_lighting.energy_consumption", "mean"),
-        # ("out.electricity.interior_lighting.energy_consumption_intensity", "mean"),
-        # ("out.electricity.pumps.energy_consumption", "mean"),
-        # ("out.electricity.pumps.energy_consumption_intensity", "mean"),
-        # ("out.electricity.refrigeration.energy_consumption", "mean"),
-        # ("out.electricity.refrigeration.energy_consumption_intensity", "mean"),
-        # ("out.electricity.total.energy_consumption", "mean"),
-        # ("out.electricity.total.energy_consumption_intensity", "mean"),
-        # ("out.electricity.water_systems.energy_consumption", "mean"),
-        # ("out.electricity.water_systems.energy_consumption_intensity", "mean"),
-        # ("out.natural_gas.heating.energy_consumption", "mean"),
-        # ("out.natural_gas.heating.energy_consumption_intensity", "mean"),
-        # ("out.natural_gas.interior_equipment.energy_consumption", "mean"),
-        # ("out.natural_gas.interior_equipment.energy_consumption_intensity", "mean"),
-        # ("out.natural_gas.total.energy_consumption", "mean"),
-        # ("out.natural_gas.total.energy_consumption_intensity", "mean"),
-        # ("out.natural_gas.water_systems.energy_consumption", "mean"),
-        # ("out.natural_gas.water_systems.energy_consumption_intensity", "mean"),
-        # ("out.other_fuel.cooling.energy_consumption", "mean"),
-        # ("out.other_fuel.cooling.energy_consumption_intensity", "mean"),
-        # ("out.other_fuel.heating.energy_consumption", "mean"),
-        # ("out.other_fuel.heating.energy_consumption_intensity", "mean"),
-        # ("out.other_fuel.total.energy_consumption", "mean"),
-        # ("out.other_fuel.total.energy_consumption_intensity", "mean"),
-        # ("out.other_fuel.water_systems.energy_consumption", "mean"),
+        ("out.district_cooling.cooling.energy_consumption", "mean"),
+        ("out.district_cooling.cooling.energy_consumption_intensity", "mean"),
+        ("out.district_cooling.total.energy_consumption", "mean"),
+        ("out.district_cooling.total.energy_consumption_intensity", "mean"),
+        ("out.district_heating.heating.energy_consumption", "mean"),
+        ("out.district_heating.heating.energy_consumption_intensity", "mean"),
+        ("out.district_heating.total.energy_consumption", "mean"),
+        ("out.district_heating.total.energy_consumption_intensity", "mean"),
+        ("out.district_heating.water_systems.energy_consumption", "mean"),
+        ("out.district_heating.water_systems.energy_consumption_intensity", "mean"),
+        ("out.electricity.cooling.energy_consumption", "mean"),
+        ("out.electricity.cooling.energy_consumption_intensity", "mean"),
+        ("out.electricity.exterior_lighting.energy_consumption", "mean"),
+        ("out.electricity.exterior_lighting.energy_consumption_intensity", "mean"),
+        ("out.electricity.fans.energy_consumption", "mean"),
+        ("out.electricity.fans.energy_consumption_intensity", "mean"),
+        ("out.electricity.heat_recovery.energy_consumption", "mean"),
+        ("out.electricity.heat_recovery.energy_consumption_intensity", "mean"),
+        ("out.electricity.heat_rejection.energy_consumption", "mean"),
+        ("out.electricity.heat_rejection.energy_consumption_intensity", "mean"),
+        ("out.electricity.heating.energy_consumption", "mean"),
+        ("out.electricity.heating.energy_consumption_intensity", "mean"),
+        ("out.electricity.interior_equipment.energy_consumption", "mean"),
+        ("out.electricity.interior_equipment.energy_consumption_intensity", "mean"),
+        ("out.electricity.interior_lighting.energy_consumption", "mean"),
+        ("out.electricity.interior_lighting.energy_consumption_intensity", "mean"),
+        ("out.electricity.pumps.energy_consumption", "mean"),
+        ("out.electricity.pumps.energy_consumption_intensity", "mean"),
+        ("out.electricity.refrigeration.energy_consumption", "mean"),
+        ("out.electricity.refrigeration.energy_consumption_intensity", "mean"),
+        ("out.electricity.total.energy_consumption", "mean"),
+        ("out.electricity.total.energy_consumption_intensity", "mean"),
+        ("out.electricity.water_systems.energy_consumption", "mean"),
+        ("out.electricity.water_systems.energy_consumption_intensity", "mean"),
+        ("out.natural_gas.heating.energy_consumption", "mean"),
+        ("out.natural_gas.heating.energy_consumption_intensity", "mean"),
+        ("out.natural_gas.interior_equipment.energy_consumption", "mean"),
+        ("out.natural_gas.interior_equipment.energy_consumption_intensity", "mean"),
+        ("out.natural_gas.total.energy_consumption", "mean"),
+        ("out.natural_gas.total.energy_consumption_intensity", "mean"),
+        ("out.natural_gas.water_systems.energy_consumption", "mean"),
+        ("out.natural_gas.water_systems.energy_consumption_intensity", "mean"),
+        ("out.other_fuel.cooling.energy_consumption", "mean"),
+        ("out.other_fuel.cooling.energy_consumption_intensity", "mean"),
+        ("out.other_fuel.heating.energy_consumption", "mean"),
+        ("out.other_fuel.heating.energy_consumption_intensity", "mean"),
+        ("out.other_fuel.total.energy_consumption", "mean"),
+        ("out.other_fuel.total.energy_consumption_intensity", "mean"),
+        ("out.other_fuel.water_systems.energy_consumption", "mean"),
         ("out.site_energy.total.energy_consumption", "mean"),
         ("out.site_energy.total.energy_consumption_intensity", "mean"),
     ]
@@ -143,15 +143,6 @@ def worker_process(process_input_queue, process_result_queue, state):
                 # Process the file
                 file_key, file_bytes = file_key_data
                 logger.info(f"1229: Worker-{worker_id} Processing file: {file_key} ...")
-
-                #! Skip metadata files (no transformation on them for now) by checking for '/metadata' in file_key
-                #!Assumption: metadata files will always have '/metadata' in the key
-                #TODO! Ideally, this should bypass the transformation pipeline (unfortunately, we didn't implement any bypass mechanism in the pipeline)
-                if '/metadata' in file_key:
-                    logger.debug(f"1230: Worker-{worker_id} found metadata file {file_key}. Skipping...")
-                    process_result_queue.put((file_key, file_bytes))
-                    logger.debug(f"1231: Worker-{worker_id} Enqueued metadata file without transformation: {file_key}")
-                    continue
 
                 file_data = BytesIO(file_bytes)
                 table = pq.read_table(file_data)

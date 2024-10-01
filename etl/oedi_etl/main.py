@@ -4,9 +4,10 @@ ETL Job Handler
 This script coordinates multiple ETL jobs by loading configuration from a JSON file and running each ETL process in sequence. Each job defines the release year, release name, state, and upgrades to filter and process the corresponding data from an S3 bucket.
 
 It:
-- Loads configuration from a JSON file.
-- Iterates over multiple ETL jobs.
-- Runs each ETL job independently with the required parameters.
+1. Loads configuration from a JSON file.
+2. Iterates over multiple ETL jobs.
+3. Runs each ETL job independently with the required parameters.
+4. Update the s3 target for Glue Crawlers with the the latest partitions to crawl
 """
 
 import asyncio
@@ -14,31 +15,23 @@ import json
 import os
 from datetime import datetime
 
-from etl_job import etl_process
-from log import get_logger
+import boto3
+from oedi_etl.etl_job import etl_process
+from oedi_etl.log import get_logger
 
 logger = get_logger()
+glue = boto3.client("glue")
 
 
-
-def load_config(config_file):
-    """
-    Load the ETL configuration from a JSON file.
-    """
-    with open(config_file, "r", encoding="utf-8") as file:
-        config = json.load(file)
-    return config["etl_config"]
-
-
-async def main():
+async def etl_main(etl_config):
     """
     Main function to execute the ETL process for multiple jobs defined in a configuration file.
 
     This function performs the following steps:
-    1. Loads the ETL configuration from a JSON file.
-    2. Sets the common S3 bucket name for all jobs.
-    3. Iterates over each job configuration and extracts relevant parameters.
-    4. Executes the ETL process asynchronously for each job using the extracted parameters.
+    1. Sets the common S3 bucket name for all jobs.
+    2. Iterates over each job configuration and extracts relevant parameters.
+    3. Executes the ETL process asynchronously for each job using the extracted parameters.
+    4. Collects and stores partitions in SSM for the Glue Crawler to discover.
 
     Parameters:
         None
@@ -47,13 +40,6 @@ async def main():
         None
     """
 
-    # config
-    config_path = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "config.json")
-    )
-    etl_config = load_config(config_path)
-
-    # shared config
     # DL config
     base_partition = etl_config["base_partition"]
     data_partition_in_release = etl_config["data_partition_in_release"]
@@ -70,12 +56,15 @@ async def main():
 
     # per glue job
     output_dir = (
-        f"{etl_config["output_dir"]}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
+        f"{etl_config['output_dir']}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
     )
     job_specific = etl_config["job_specific"]
 
     # async tasks
     tasks = []
+    data_partitions_to_crawl = []
+    metadata_partitions_to_crawl = []
+
 
     # Iterate over the jobs defined in job_specific
     for job_config in job_specific:
@@ -91,7 +80,6 @@ async def main():
             "metadata_location": job_config["metadata_location"],
             "base_partition": base_partition,
             "data_partition_in_release": data_partition_in_release,
-            # "toggle_date_partition": job_config.get("toggle_date_partition", False),
             "idle_timeout_in_minutes": idle_timeout_in_minutes,
             "listing_page_size": listing_page_size,
             "max_listing_queue_size": max_listing_queue_size,
@@ -105,8 +93,38 @@ async def main():
         )
         tasks.append(etl_process(etl_name, config))
 
+        # Construct partition paths
+        for upgrade in config["upgrades"]:
+            partition = (
+                f"{base_partition}/{config['release_year']}/{config['release_name']}/"
+                f"{data_partition_in_release}/upgrade={upgrade}/state={config['state']}"
+            )
+            data_partitions_to_crawl.append(partition)
+
+        # Add metadata location as well (remove src_bucket and construct for the state partition)
+        _metadata_location = f"{'/'.join(config['metadata_location'].split('/')[1:])}/state={config['state']}/parquet"
+        metadata_partitions_to_crawl.append(_metadata_location)
+
+    # Execute ETL tasks
     await asyncio.gather(*tasks)
 
+    #output prefix
+    output_prefix = f"s3://{dest_bucket}/{output_dir}"
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    # Pass collected partitions to the Data  Crawler
+    if data_partitions_to_crawl:
+        glue.update_crawler(
+            Name=os.getenv("DATA_CRAWLER_NAME"),
+            Targets={
+                'S3Targets': [{'Path': f"{output_prefix}/{partition}"} for partition in data_partitions_to_crawl]
+            }
+        )
+
+    # Pass the metadata partitions to the Metadata Crawler
+    if metadata_partitions_to_crawl:
+        glue.update_crawler(
+            Name=os.getenv("METADATA_CRAWLER_NAME"),
+            Targets={
+                'S3Targets': [{'Path': f"{output_prefix}/{partition}"} for partition in metadata_partitions_to_crawl]
+            }
+        )

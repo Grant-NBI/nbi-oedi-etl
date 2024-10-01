@@ -40,11 +40,11 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Manager
 
-from fetch import fetch_files
-from log import get_logger
-from monitor import monitor_idle_tasks, ETLMonitor
-from transform import worker_process
-from upload import load_files
+from oedi_etl.fetch import fetch_files
+from oedi_etl.log import get_logger
+from oedi_etl.monitor import monitor_idle_tasks, ETLMonitor
+from oedi_etl.transform import worker_process
+from oedi_etl.upload import load_files
 
 logger = get_logger()
 
@@ -70,6 +70,7 @@ async def etl_process(etl_name, config):
         # Shared state to track file counts across all tasks
         state = manager.dict(
             {
+                "bypassed":0,
                 "listed": 0,
                 "fetched": 0,
                 "transferred_to_worker": 0,
@@ -141,10 +142,13 @@ async def etl_process(etl_name, config):
             await asyncio.gather(fetch_task, load_task, monitor_idle_task)
         except asyncio.CancelledError:
             logger.info("1090: Tasks were cancelled due to idle timeout.")
+        except Exception as e:
+            logger.exception("1091:An exception occurred: %s", e)
 
-        # Ensure worker processes are properly shut down
+
+        # Print monitor summary before exiting the context and shutdown the process executor
+        monitor.print_summary()
         process_executor.shutdown(wait=True)
 
     # End time after completion or timeout
-    monitor.print_summary()
     logger.info(f"1099: ETL completed for {etl_name}")

@@ -1,20 +1,32 @@
 *.js
-!jest.config.js
-!scripts/*.js
-*.d.ts
 node_modules
 config.json
 *.env
 *.env.json
+*.d.ts
+
+#unignore
+!jest.config.js
+!scripts/*.js
+!scripts/*.d.ts
 
 # CDK asset staging directory
 .cdk.staging
 cdk.out
 
-# maintenance
-.history/
-data/
-tmp/
+# dev
+**/.history/
+**/data/
+**/tmp/
 **/logs/
 **/package/
 **/build/
+**/dist/
+**/sandbox/
+**/.venv/
+**/.*.pyc
+**/__pycache__
+**/*.egg-info
+**/*.egg
+**/*.log
+**/*.whl

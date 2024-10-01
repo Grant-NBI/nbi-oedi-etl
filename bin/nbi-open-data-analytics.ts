@@ -8,23 +8,24 @@ import {
   account,
   regions,
   deploymentEnv,
+  etlConfigBase64,
+  GLUE_WORKFLOW_NAME,
   glueJobTimeoutMinutes,
+  stackName,
 } from "../scripts/config";
 
 regions.forEach((region: string) => {
   const app = new cdk.App();
-  new NbiOpenDataAnalyticsStack(
-    app,
-    `${appName}PinpointStack${deploymentEnv}`,
-    {
-      appName,
-      deploymentEnv,
-      glueJobTimeoutMinutes,
-      env: {
-        account,
-        region,
-      },
-      description: `Pinpoint stack for ${appName}, for ${deploymentEnv} environment created using CDK`,
-    }
-  );
+  new NbiOpenDataAnalyticsStack(app, stackName, {
+    appName: appName,
+    deploymentEnv,
+    etlConfigBase64,
+    glueWorkflowName: GLUE_WORKFLOW_NAME,
+    glueJobTimeoutMinutes,
+    env: {
+      account,
+      region,
+    },
+    description: `Oedi Etl stack for ${appName}, for ${deploymentEnv} environment created using CDK`,
+  });
 });

@@ -6,7 +6,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 import boto3
-from log import get_logger
+from oedi_etl.log import get_logger
 
 logger = get_logger()
 

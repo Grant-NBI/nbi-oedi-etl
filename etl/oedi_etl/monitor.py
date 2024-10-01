@@ -13,7 +13,7 @@ import os
 import tempfile
 import time
 
-from log import get_logger
+from oedi_etl.log import get_logger
 
 logger = get_logger()
 
@@ -49,9 +49,18 @@ class ETLMonitor:
             "Listed file: %s, Total listed: %d", file_key, self.state["listed"]
         )
 
+    def record_bypasseded(self, file_key):
+        self.state["bypassed"] += 1
+        #this is part of incoming files but not processed/uploaded(directly copied and tracked separately)
+        #file_key is not hashed or tracked, just logged for debugging purposes
+        logger.debug(
+            "Bypassed file: %s, Total bypassed: %d", file_key, self.state["bypassed"]
+        )
+
     def record_fetched(self):
         self.state["fetched"] += 1
         logger.debug("Total fetched: %d", self.state["fetched"])
+
 
     def record_transferred_to_worker(self):
         self.state["transferred_to_worker"] += 1
@@ -109,6 +118,7 @@ class ETLMonitor:
             "end_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
             "total_files_listed": self.state["listed"],
             "total_files_fetched": self.state["fetched"],
+            "total_files_bypassed": self.state["bypassed"],
             "total_files_transferred_to_worker": self.state["transferred_to_worker"],
             "total_transformed_files": self.state["transformed"],
             "total_files_transferred_to_uploader": self.state[
@@ -194,10 +204,12 @@ class HashMap:
 
     def cleanup(self):
         """
-        Clean up the temporary file after use.
+        Clean up the temporary file after use during local testing. This is ignored in the glue environment.
         """
         try:
-            os.remove(self.temp_file.name)
+            if  os.getenv('ETL_EXECUTION_ENV') != 'AWS_GLUE':
+                time.sleep(30) #wait for the file to be closed
+                os.remove(self.temp_file.name)
         except OSError as e:
             print(f"Error: {e.strerror} - {e.filename}")
 
@@ -229,7 +241,12 @@ async def monitor_idle_tasks(
     """
     last_activity_time = time.time()
     while True:
-        # Check if all queues are empty
+
+        #normal exit
+        if all(task.done() for task in tasks_to_cancel):
+            logger.info("1098: All tasks completed, exiting monitor.")
+            break
+        #Hangup process Check if all queues are empty (the last upload should be done in less than the timeout time or it maybe prematurely terminated)
         if all_queues_empty(queues):
             current_time = time.time()
             elapsed_idle_time_in_minutes = (current_time - last_activity_time) / 60
@@ -247,7 +264,7 @@ async def monitor_idle_tasks(
 
                 # Shutdown the process executor
                 process_executor.shutdown(wait=False)
-                return  # Exit monitor task
+                break  # Exit monitor task
         else:
             # Activity detected => reset
             logger.info("1087: Activity detected. Resetting idle timer.")
