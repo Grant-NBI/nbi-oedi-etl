@@ -1,14 +1,17 @@
 # pylint: disable=import-error
 # pyright: reportMissingImports=false
-import sys
+import asyncio
+import base64
+import importlib
 import json
 import os
-import base64
-import asyncio
-import importlib
-from awsglue.utils import getResolvedOptions  # available in Glue pythonshell
+import sys
+from datetime import datetime
+import logging
+
 
 import boto3
+from awsglue.utils import getResolvedOptions  # available in Glue pythonshell
 
 s3 = boto3.client("s3")
 
@@ -65,21 +68,10 @@ if __name__ == "__main__":
     os.environ["OUTPUT_BUCKET_NAME"] = output_bucket_name
     os.environ["DATA_CRAWLER_NAME"] = data_crawler_name
     os.environ["METADATA_CRAWLER_NAME"] = metadata_crawler_name
+    os.environ["LOG_FILE_PREFIX"] = f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
 
     # Dynamically import etl_main after setting environment variables
     etl_main = importlib.import_module("oedi_etl.main").etl_main
 
     # Run the etl job
     asyncio.run(etl_main(_config))
-
-    # export logs to S3
-    log_files = [
-        os.path.join("/tmp/", log_dir, f)
-        for f in os.listdir(os.path.join("/tmp/", log_dir))
-        if log_filename in f
-    ]
-
-    for log_file in log_files:
-        s3.upload_file(
-            log_file, output_bucket_name, f"logs/{os.path.basename(log_file)}"
-        )

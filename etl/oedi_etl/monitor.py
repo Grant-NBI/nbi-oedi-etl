@@ -49,7 +49,7 @@ class ETLMonitor:
             "Listed file: %s, Total listed: %d", file_key, self.state["listed"]
         )
 
-    def record_bypasseded(self, file_key):
+    def record_bypassed(self, file_key):
         self.state["bypassed"] += 1
         #this is part of incoming files but not processed/uploaded(directly copied and tracked separately)
         #file_key is not hashed or tracked, just logged for debugging purposes

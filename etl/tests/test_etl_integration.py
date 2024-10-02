@@ -21,6 +21,7 @@ import importlib.util
 import json
 import os
 import sys
+from datetime import datetime
 
 import boto3
 
@@ -92,6 +93,7 @@ async def test_etl_process():
     os.environ["LOG_FILENAME"] = settings.get("log_filename", "etl.log")
     os.environ["AWS_PROFILE"] = test_env_config.get("AWS_PROFILE", "default_profile")
     os.environ["AWS_REGION"] = test_env_config.get("AWS_REGION", "us-west-2")
+    os.environ["LOG_FILE_PREFIX"] = f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
 
     # check
     session = boto3.Session()
@@ -102,8 +104,8 @@ async def test_etl_process():
     print("LOG_DIR:", os.getenv("LOG_DIR"))
     print("LOG_FILENAME:", os.getenv("LOG_FILENAME"))
 
-    #*This is supplied as argument in glue job
-    os.environ["DATA_CRAWLER_NAME"]= "nbi_building_analytics_dev_oedi_etl_crawler"
+    # *This is supplied as argument in glue job
+    os.environ["DATA_CRAWLER_NAME"] = "nbi_building_analytics_dev_oedi_etl_crawler"
     # For isolated testing purposes, we must identify the bucket name (this has to be manually /cli provisioned). In the cdk app, a bucket is provisioned and the bucket name is passed to the glue job as environment variable (OUTPUT_BUCKET_NAME
     os.environ["TEST_BUCKET_NAME"] = test_env_config.get("TEST_BUCKET_NAME")
 

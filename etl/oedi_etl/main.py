@@ -65,7 +65,6 @@ async def etl_main(etl_config):
     data_partitions_to_crawl = []
     metadata_partitions_to_crawl = []
 
-
     # Iterate over the jobs defined in job_specific
     for job_config in job_specific:
         # config for each job
@@ -101,23 +100,33 @@ async def etl_main(etl_config):
             )
             data_partitions_to_crawl.append(partition)
 
-        # Add metadata location as well (remove src_bucket and construct for the state partition)
-        _metadata_location = f"{'/'.join(config['metadata_location'].split('/')[1:])}/state={config['state']}/parquet"
+        # Add metadata location as well (remove src_bucket and construct for the state partition). Partition points to the state then ignore csv and target the parquet. If you point it to parquet, it will output a name that ends with parquet and won't be unique per state and all crawl jobs across states will be pointing to the same location (which probably is fine as they most likely have identical schema but that is too much of an assumption)
+        _metadata_location = f"{'/'.join(config['metadata_location'].split('/')[1:])}/state={config['state']}"
         metadata_partitions_to_crawl.append(_metadata_location)
 
     # Execute ETL tasks
     await asyncio.gather(*tasks)
 
-    #output prefix
+    # output prefix
     output_prefix = f"s3://{dest_bucket}/{output_dir}"
+    # TODO!: you can have advanced glob patterns to exclude all states and identify the state to crawl, but not worth testing now -> just set the root at the state level => creates table per partitions => ideally you figure this out and create one table for all and provision this via with CDK with a placeholder and update it per each run (not the most complex thing to do but requires testing and time
 
-    # Pass collected partitions to the Data  Crawler
+    # Pass collected partitions to the Data Crawler
     if data_partitions_to_crawl:
         glue.update_crawler(
             Name=os.getenv("DATA_CRAWLER_NAME"),
             Targets={
-                'S3Targets': [{'Path': f"{output_prefix}/{partition}"} for partition in data_partitions_to_crawl]
-            }
+                "S3Targets": [
+                    {"Path": f"{output_prefix}/{partition}"}
+                    for partition in data_partitions_to_crawl
+                ]
+            },
+            Configuration=json.dumps(
+                {
+                    "Version": 1.0,
+                    "Grouping": {"TableLevelConfiguration": 11},
+                }
+            ),
         )
 
     # Pass the metadata partitions to the Metadata Crawler
@@ -125,6 +134,15 @@ async def etl_main(etl_config):
         glue.update_crawler(
             Name=os.getenv("METADATA_CRAWLER_NAME"),
             Targets={
-                'S3Targets': [{'Path': f"{output_prefix}/{partition}"} for partition in metadata_partitions_to_crawl]
-            }
+                "S3Targets": [
+                    {"Path": f"{output_prefix}/{partition}", "Exclusions": ["*/csv/*"]}
+                    for partition in metadata_partitions_to_crawl
+                ]
+            },
+            Configuration=json.dumps(
+                {
+                    "Version": 1.0,
+                    "Grouping": {"TableLevelConfiguration": 11},
+                }
+            ),
         )

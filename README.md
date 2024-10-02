@@ -191,20 +191,20 @@ Bucket structure:
 
 *Note: you can have multiple configurations for different releases, states, and upgrades.*
 
-### ETL Workflow Overview
+### System Overview
 
 The ETL process is automated as part of a Glue Workflow, which orchestrates the entire ETL process across an AWS Glue job and metadata and data crawlers. This can be scheduled but as per requirement it's manually triggered.
 
 ### Key Steps
 
 1. **Glue Workflow Orchestration**:
-   The workflow begins by invoking the main Glue ETL Job, which performs the extraction, transformation, and loading of the data. This job follows the steps outlined below (see **ETL Flow Overview**), handling partitioning, processing, and parallelization of the data.
+   The workflow begins by invoking the main Glue ETL Job, which performs the extraction, transformation, and loading of the data. When this job status transitions to "SUCCEEDED", the Glue Crawlers are triggered to update the schema in the Glue Data Catalog.
 
 2. **ETL Glue Job**:
    The primary Glue ETL job processes the input data and stores the results in the S3 output bucket. After the job finishes, it updates the partitions it processed as s3 targets to the Glue Crawler
 
-3. **Glue Crawler**:
-   The Glue Crawler is triggered to automatically discover the schema and new partitions from the output data in the S3 bucket. This ensures that the Glue Data Catalog stays up-to-date, making the data available for querying.
+3. **Glue Crawlers**:
+   The crawlers ( Metadata and data crawlers) are triggered to automatically discover the schema and new partitions from the output data in the S3 bucket. This ensures that the Glue Data Catalog stays up-to-date, making the data available for querying.
 
 4. **Athena Querying**:
    Once the Glue Crawler completes its updates, Athena is ready to query the data. The workflow integrates with Athena by making the processed data queryable through Athena WorkGroups and saved queries, which are available for BI tools like PowerBI.
@@ -316,3 +316,67 @@ There are numerous js and py scripts used in the building and deployment of the 
 * **Poetry Scripts**
   * `poetry run test`: Runs the ETL test using the runner script
   * `poetry run wheel`: Builds the etl whl using the build_wheel script
+
+---
+
+## Analytic Store (Outputs Bucket)
+
+* **etl_output**: Stores the output data and metadata from the ETL processes. The data is partitioned by state and upgrade. If you implement the date partitioning, it will be partitioned by date as well
+* **scripts**: Houses the Glue job package and runner script (`oedi_etl`, `glue_entry.py`).
+
+---
+
+## Logging
+
+For local ETL runs, there is a local logger, and for AWS Glue runs, logging is managed using `print` statements that are captured in CloudWatch. Each log file is tagged with a timestamp and the log filename. At different log levels, you can track the progress of the ETL job, with a summary provided at the end of each log.
+
+When running on AWS Glue, logs are sent directly to CloudWatch, and only `INFO` level and higher messages are logged. This ensures that logging remains efficient and avoids excessive verbosity. For local runs, all log levels, including `DEBUG`, are available for more detailed tracking.
+
+While the logging in AWS Glue is restricted to `INFO` level, local logging is more verbose and can help diagnose systemic issues. If you find the Glue logs too verbose, you can adjust some `logger.info` outputs to `logger.debug` to reduce the output.
+
+Below is a sample summary printout from an actual test run. As you can see, `5790-1.parquet` was tracked as incoming but not uploaded. The `total_files_transferred_to_uploader` is 1 less than the `total_files_fetched`, which is captured by the `discrepancy_count`, and the file itself is logged in `discrepancies`. Such discrepancies can be investigated or manually addressed. In this case, it appears that the file may be corrupted and causing an error during transformation, which can be confirmed by reviewing the logs. The purpose here is not to troubleshoot, but to guide you that ETL processing failures can be identified and resolved.
+
+```JSON
+{
+    "job_name": "comstock_amy2018_release_1_2024_AK",
+    "start_time": "2024-10-01 07:50:07",
+    "total_time_seconds": 180.03,
+    "end_time": "2024-10-01 07:53:07",
+    "total_files_listed": 504,
+    "total_files_fetched": 504,
+    "total_files_bypassed": 2,
+    "total_files_transferred_to_worker": 504,
+    "total_transformed_files": 502,
+    "total_files_transferred_to_uploader": 503,
+    "total_uploaded_files": 503,
+    "discrepancies_count": 1,
+    "discrepancies": [
+        {
+            "stage": "Listed but not Uploaded",
+            "files": [
+                "nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/comstock_amy2018_release_1/timeseries_individual_buildings/by_state/upgrade=1/state=AK/5790-1.parquet"
+            ]
+        }
+    ]
+}
+```
+
+---
+
+## Known Issues/Limitations
+
+Use the TODO extension to browse through the list of TODOs if you decide to maintain this.
+
+* **Crawler Metadata Handling**: The automated crawlers map all metadata to the same parquet-prefixed table regardless of state. While the ETL is state-specific, all metadata across states will share the same schema, which could cause errors in some queries if the schema differs by state. Handling custom crawlers for this is likely not worth the effort. Note that the last job always hogs this schema so if you restrict your querying to the last job, you should be fine.
+
+* **State-Specific Job and Prefixing**: Each job and data crawling is performed on a per-state basis, with schema table prefixed for each state as creating multiple tables per state doesn’t make sense nor crawling all states (wasteful). The downside is the need to deal with state suffixes in SQL queries.
+
+* **Untested Parallel State Jobs**: This system should handle multiple jobs with the other restrictions in mind. However, it has not been tested with multiple state jobs running in parallel. You can test or restrict your ETL to one state ETL job per one workflow run.
+
+* **Glue Logging Restrictions**: Logging on Glue is limited to CloudWatch. While it's theoretically possible to use a custom logger to log to S3, this would require handling Glue intricacies, as Glue utilities monopolize stdout. To save on cost and clutter, DEBUG is not supported on Glue.
+
+* **Single Log File**: Currently, all logging is written to a single log file. This could be improved by writing to separate log files for each ETL job run. Although different ETL runs have unique timestamps, running multiple jobs per state will share the same log file.
+
+* **ETL Optimization**: The ETL process can be further optimized, though it already has a decent utilization rate. This is not worth the effort unless you dealing with high volume + rate data.
+
+---

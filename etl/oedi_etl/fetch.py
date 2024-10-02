@@ -143,7 +143,6 @@ async def list_files_in_s3(objects_to_fetch_async_queue, config, monitor):
             if current_partition.endswith('.parquet'):
                 # directly copy metadata file from src to dest bucket without processing
                 await bypass_etl(current_partition, config, monitor)
-                monitor.record_bypassed(current_partition)
                 await asyncio.sleep(0)  # Yield control
             else:
                 # It's a data partition (prefix), list files under it
