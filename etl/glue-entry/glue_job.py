@@ -7,19 +7,21 @@ import json
 import os
 import sys
 from datetime import datetime
-import logging
 
 
 import boto3
 from awsglue.utils import getResolvedOptions  # available in Glue pythonshell
 
 s3 = boto3.client("s3")
+glue_client = boto3.client("glue")
 
 
 def load_arguments():
     """
-    Decodes the Base64-encoded configuration passed to the job.
+    Loads default arguments and decodes the Base64-encoded configuration passed to the job.
+    Also fetches 'etl_config' overrides passed via Glue Workflow RunProperties and decodes the configuration.
     """
+
     # Get the base64 encoded config and additional args from the arguments
     args = getResolvedOptions(
         sys.argv,
@@ -29,9 +31,21 @@ def load_arguments():
             "OUTPUT_BUCKET_NAME",
             "DATA_CRAWLER_NAME",
             "METADATA_CRAWLER_NAME",
+            "WORKFLOW_NAME",
+            "WORKFLOW_RUN_ID",
         ],
     )
-    base64_config = args["etl_config"]
+
+    # Fetch workflow run props and use override if available, otherwise use the default available during the last deployment
+    workflow_params = glue_client.get_workflow_run_properties(
+        Name=args["WORKFLOW_NAME"], RunId=args["WORKFLOW_RUN_ID"]
+    )["RunProperties"]
+
+    # debug info
+    print(f"[INFO] (1000) Default Arguments: {json.dumps(args, indent=2)}")
+    print(f"[INFO] (1000) Workflow Parameters: {json.dumps(workflow_params, indent=2)}")
+
+    base64_config = workflow_params.get("--etl_config_override", args["etl_config"])
 
     # Decode the base64 encoded config
     decoded_config = base64.b64decode(base64_config).decode("utf-8")

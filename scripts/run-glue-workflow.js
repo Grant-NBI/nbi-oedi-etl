@@ -8,7 +8,7 @@ process.env.AWS_PROFILE = profile;
 process.env.AWS_REGION = region;
 const client = new GlueClient({ region });
 
-async function startGlueJob() {
+async function startGlueWorkflow() {
     try {
         // Pass etl_config to simplify python script parsing.
         // NB: this is passed to the glue job via the glue workflow
@@ -16,9 +16,9 @@ async function startGlueJob() {
         //! the console ONLY shows the config available during CDK deployment
         const input = {
             Name: GLUE_WORKFLOW_NAME,
-            Arguments: {
+            RunProperties: {
                 //overrides
-                '--etl_config': etlConfigBase64,
+                '--etl_config_override': etlConfigBase64,
             },
 
         };
@@ -31,5 +31,5 @@ async function startGlueJob() {
 }
 
 // Run job
-startGlueJob(console.log).catch(console.error)
+startGlueWorkflow(console.log).catch(console.error)
 

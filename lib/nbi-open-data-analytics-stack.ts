@@ -147,45 +147,43 @@ export class NbiOpenDataAnalyticsStack extends cdk.Stack {
     glueWorkflowRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
-          // "glue:BatchGetJobs",
-          // "glue:BatchGetCrawlers",
-          // "glue:BatchGetTriggers",
-          // "glue:BatchGetWorkflows",
-          // "glue:GetCrawler",
-          // "glue:GetCrawlerMetrics",
-          // "glue:GetJobRun",
-          // "glue:GetJobRuns",
-          // "glue:GetTrigger",
-          // "glue:GetTriggers",
-          // "glue:GetWorkflowRun",
-          // "glue:GetWorkflowRuns",
-          // "glue:StartCrawler",
-          // "glue:StartJobRun",
-          // "glue:StartTrigger",
-          // "glue:StartWorkflowRun",
-          // "glue:UpdateTrigger",
-          "glue:*",
+          "glue:BatchGetJobs",
+          "glue:BatchGetCrawlers",
+          "glue:BatchGetTriggers",
+          "glue:BatchGetWorkflows",
+          "glue:GetCrawler",
+          "glue:GetCrawlerMetrics",
+          "glue:GetJobRun",
+          "glue:GetJobRuns",
+          "glue:GetTrigger",
+          "glue:GetTriggers",
+          "glue:GetWorkflowRun",
+          "glue:GetWorkflowRuns",
+          "glue:StartCrawler",
+          "glue:StartJobRun",
+          "glue:StartTrigger",
+          "glue:StartWorkflowRun",
+          "glue:UpdateTrigger",
         ],
         resources: [
           //TODO: tighten up permissions
-          // `arn:aws:glue:${this.region}:${this.account}:workflow/*`,
-          // `arn:aws:glue:${this.region}:${this.account}:trigger/*`,
-          // `arn:aws:glue:${this.region}:${this.account}:crawler/*`,
-          // `arn:aws:glue:${this.region}:${this.account}:job/*`,
-          "*",
+          `arn:aws:glue:${this.region}:${this.account}:workflow/*`,
+          `arn:aws:glue:${this.region}:${this.account}:trigger/*`,
+          `arn:aws:glue:${this.region}:${this.account}:crawler/*`,
+          `arn:aws:glue:${this.region}:${this.account}:job/*`,
         ],
       })
     );
 
     // Glue Workflow
-    const workflow = new glue.CfnWorkflow(this, "GlueWorkflow", {
+    new glue.CfnWorkflow(this, "GlueWorkflow", {
       name: this.glueWorkflowName,
     });
 
     // Glue Job Trigger (Trigger the job first, and it will proxy the workflow argument by default)
     new glue.CfnTrigger(this, "JobTrigger", {
       type: "ON_DEMAND",
-      workflowName: workflow.ref,
+      workflowName: this.glueWorkflowName,
       actions: [
         {
           jobName: this.glueJobName,
@@ -196,7 +194,9 @@ export class NbiOpenDataAnalyticsStack extends cdk.Stack {
     //Data and Metadata Crawlers Trigger
     new glue.CfnTrigger(this, "CrawlersTrigger", {
       type: "CONDITIONAL",
-      workflowName: workflow.ref,
+      startOnCreation: true,
+
+      workflowName: this.glueWorkflowName,
       actions: [
         {
           crawlerName: this.dataCrawlerName,
@@ -213,6 +213,7 @@ export class NbiOpenDataAnalyticsStack extends cdk.Stack {
             state: "SUCCEEDED",
           },
         ],
+        logical: "ANY",
       },
     });
   }
@@ -231,29 +232,37 @@ export class NbiOpenDataAnalyticsStack extends cdk.Stack {
     });
 
     this.bucket.grantReadWrite(glueRole);
+    // Glue role policy statements
 
-    //glue also needs to read public datasets
+    // Glue needs to read public datasets
     glueRole.addToPolicy(
       new iam.PolicyStatement({
         actions: ["s3:GetObject", "s3:ListBucket"],
-        resources: ["arn:aws:s3::*", "arn:aws:s3:::*/*"],
+        resources: ["arn:aws:s3:::*", "arn:aws:s3:::*/*"],
       })
     );
 
+    // Glue needs access to manage crawlers
     glueRole.addToPolicy(
       new iam.PolicyStatement({
-        actions: [
-          // "glue:UpdateCrawler",
-          // "glue:StartTrigger",
-          "glue:*",
-        ],
+        actions: ["glue:UpdateCrawler", "glue:StartTrigger"],
         resources: [
-          // `arn:aws:glue:*:${this.account}:crawler/${this.dataCrawlerName}`,
-          // `arn:aws:glue:*:${this.account}:crawler/${this.metadataCrawlerName}`,
-          "*",
+          `arn:aws:glue:${this.region}:${this.account}:crawler/${this.dataCrawlerName}`,
+          `arn:aws:glue:${this.region}:${this.account}:crawler/${this.metadataCrawlerName}`,
         ],
       })
     );
+
+    // Glue needs to fetch workflow properties
+    glueRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["glue:GetWorkflowRunProperties", "glue:GetWorkflowRun"],
+        resources: [
+          `arn:aws:glue:${this.region}:${this.account}:workflow/${this.glueWorkflowName}`,
+        ],
+      })
+    );
+
     // Upload etl script/packaging
     // Deploy ETL wheel file and Glue job entry script to S3
 
@@ -275,7 +284,7 @@ export class NbiOpenDataAnalyticsStack extends cdk.Stack {
     const defaultArguments: Record<string, string> = {
       "--DATA_CRAWLER_NAME": this.dataCrawlerName,
       "--ETL_EXECUTION_ENV": "AWS_GLUE",
-      "--etl_config": this.etlConfigBase64,
+      "--etl_config": this.etlConfigBase64, //will be overridden via workflow run props
       "--extra-py-files": `s3://${this.bucket.bucketName}/${this.oediEtlS3Prefix}/${etlDistName}`,
       "--METADATA_CRAWLER_NAME": this.metadataCrawlerName,
       "--OUTPUT_BUCKET_NAME": this.bucketName,
